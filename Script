@@ -241,6 +241,7 @@ local tabs = {
     {name = "PLAYER", icon = "👤"},
     {name = "VISUAL", icon = "👁️"},
     {name = "WORLD", icon = "🌍"},
+    {name = "SCRIPTS", icon = "📜"},
 }
 
 local tabBar = Instance.new("Frame")
@@ -287,7 +288,7 @@ for i, tab in ipairs(tabs) do
     btn.BackgroundColor3 = (i == 1) and V.accentDark or V.bgSurface
     btn.Text = tab.icon .. " " .. tab.name
     btn.TextColor3 = (i == 1) and V.textBright or V.textDim
-    btn.TextSize = 10 * V.scale
+    btn.TextSize = 9 * V.scale
     btn.Font = V.fontSemi
     btn.BorderSizePixel = 0
     btn.Parent = tabBar
@@ -612,7 +613,6 @@ local function createDropdown(parent, name, items, defaultVal, callback)
     return frame
 end
 
--- Gamepass System
 local eventCount = 0
 local entries = {}
 local suppressCounter = 0
@@ -653,9 +653,11 @@ local strategies = {
 
 function scanAllGamepasses()
     allGamepasses = {}
+    
     pcall(function()
-        local url = "https://games.roblox.com/v1/games/" .. game.PlaceId .. "/game-passes?limit=100"
+        local url = "https://games.roblox.com/v1/games/" .. game.PlaceId .. "/game-passes?limit=100&sortOrder=Asc"
         local response = game:HttpGet(url)
+        if not response or response == "" then return end
         local data = HttpService:JSONDecode(response)
         if data and data.data then
             for _, gp in ipairs(data.data) do
@@ -947,7 +949,6 @@ function addLog(label, id, signalType)
     table.insert(entries, {frame = entry, gpid = id, sigtype = signalType})
 end
 
--- GAMEPASS PANEL
 local gamepassContainer = containers["GAMEPASS"]
 local gpActions = createSection(gamepassContainer, "ACTIONS")
 
@@ -974,7 +975,6 @@ local gpSettings = createSection(gamepassContainer, "SETTINGS")
 createDropdown(gpSettings, "Anti-Cheat", {"NONE", "LIGHT", "MEDIUM", "HEAVY", "EXTREME"}, V.currentAntiCheat, function(v) V.currentAntiCheat = v end)
 createSlider(gpSettings, "Auto Speed", 1, 10000, V.autoSpeed, function(v) V.autoSpeed = v end)
 
--- PLAYER PANEL
 local playerContainer = containers["PLAYER"]
 local playerSection = createSection(playerContainer, "MOVEMENT")
 
@@ -1063,7 +1063,6 @@ createToggle(playerSection, "Fly Mode", false, function(v)
 end)
 createSlider(playerSection, "Fly Speed", 20, 300, 50, function(v) flySpeed = v end)
 
--- VISUAL PANEL
 local visualContainer = containers["VISUAL"]
 local visualSection = createSection(visualContainer, "VISUALS")
 createToggle(visualSection, "Fullbright", false, function(v)
@@ -1084,7 +1083,6 @@ createSlider(visualSection, "Camera FOV", 50, 140, 70, function(v)
 end)
 createSlider(visualSection, "Brightness", 0, 5, 1, function(v) Lighting.Brightness = v end)
 
--- WORLD PANEL
 local worldContainer = containers["WORLD"]
 local worldSection = createSection(worldContainer, "TELEPORT")
 createButton(worldSection, "Teleport to Mouse", function()
@@ -1128,7 +1126,15 @@ createButton(worldSection, "Rejoin Server", function()
     TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, player)
 end)
 
--- Footer buttons
+local scriptsContainer = containers["SCRIPTS"]
+local scriptsSection = createSection(scriptsContainer, "SCRIPT HUB")
+
+createButton(scriptsSection, "Infinite Yield", function()
+    pcall(function()
+        loadstring(game:HttpGet('https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source'))()
+    end)
+end, V.accentDark)
+
 local stopBtn = Instance.new("TextButton")
 stopBtn.Size = UDim2.new(0, 60, 0, V.btnH)
 stopBtn.Position = UDim2.new(1, -74, 0.5, -V.btnH/2)
@@ -1165,7 +1171,6 @@ clearBtnFooter.MouseButton1Click:Connect(function()
     countLabel.Text = "0 events"
 end)
 
--- Cleanup
 local function destroyScript()
     destroyed = true
     stopAllAutoAndSpam()
@@ -1190,7 +1195,6 @@ if not isMobile then
     end)
 end
 
--- Marketplace hooks
 safeConnect(MarketplaceService.PromptProductPurchaseFinished, function(plr, id, bought)
     if suppressCounter == 0 and plr == player then addLog("Product", id, "Product") end
 end)
@@ -1209,7 +1213,6 @@ pcall(function()
     end)
 end)
 
--- Auto-scan
 task.spawn(function()
     task.wait(1)
     if destroyed or not screenGui or not screenGui.Parent then return end
