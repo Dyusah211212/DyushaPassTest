@@ -621,6 +621,7 @@ local activeSpamButtons = {}
 local allGamepasses = {}
 local scannedIds = {}
 local destroyed = false
+local detectedGPIds = {}
 
 local function fireFakeSignal(signalType, id)
     suppressCounter = suppressCounter + 1
@@ -654,20 +655,25 @@ local strategies = {
 function scanAllGamepasses()
     allGamepasses = {}
     
-    pcall(function()
-        local url = "https://games.roblox.com/v1/games/" .. game.PlaceId .. "/game-passes?limit=100&sortOrder=Asc"
-        local response = game:HttpGet(url)
-        if not response or response == "" then return end
-        local data = HttpService:JSONDecode(response)
-        if data and data.data then
-            for _, gp in ipairs(data.data) do
-                if not scannedIds[gp.id] then
-                    scannedIds[gp.id] = true
-                    table.insert(allGamepasses, {id = gp.id, name = gp.name or "Unknown", price = gp.price or 0})
-                end
-            end
-        end
+    local success, response = pcall(function()
+        return game:HttpGet("https://games.roblox.com/v1/games/" .. game.PlaceId .. "/game-passes?limit=100&sortOrder=Asc")
     end)
+    
+    if not success or not response or response == "" then return allGamepasses end
+    
+    local success2, data = pcall(function()
+        return HttpService:JSONDecode(response)
+    end)
+    
+    if not success2 or not data or not data.data then return allGamepasses end
+    
+    for _, gp in ipairs(data.data) do
+        if not scannedIds[gp.id] then
+            scannedIds[gp.id] = true
+            table.insert(allGamepasses, {id = gp.id, name = gp.name or "Unknown", price = gp.price or 0})
+        end
+    end
+    
     return allGamepasses
 end
 
@@ -952,12 +958,24 @@ end
 local gamepassContainer = containers["GAMEPASS"]
 local gpActions = createSection(gamepassContainer, "ACTIONS")
 
-createButton(gpActions, "Scan All Gamepasses", function()
+createButton(gpActions, "Scan Gamepasses", function()
     local gps = scanAllGamepasses()
     for _, gp in ipairs(gps) do
-        addLog("Scan", gp.id, "Gamepass")
+        addLog("API", gp.id, "Gamepass")
     end
 end, V.info)
+
+createButton(gpActions, "Cancel Purchase Method", function()
+    local gps = scanAllGamepasses()
+    for _, gp in ipairs(gps) do
+        MarketplaceService:PromptGamePassPurchase(player, gp.id)
+        task.wait(0.3)
+        pcall(function()
+            MarketplaceService:SignalPromptGamePassPurchaseFinished(player, gp.id, false)
+        end)
+        addLog("Cancel", gp.id, "Gamepass")
+    end
+end, V.warning)
 
 createButton(gpActions, "Mass Attack", function()
     local gps = scanAllGamepasses()
@@ -1195,11 +1213,18 @@ if not isMobile then
     end)
 end
 
+-- Детект геймпассов через PromptGamePassPurchase (метод Seluwia: нажать купить и отменить)
+safeConnect(MarketplaceService.PromptGamePassPurchaseFinished, function(plr, id, bought)
+    if not bought then
+        detectedGPIds[id] = true
+    end
+    if suppressCounter == 0 and plr == player then 
+        addLog(bought and "Bought" or "Cancel", id, "Gamepass")
+    end
+end)
+
 safeConnect(MarketplaceService.PromptProductPurchaseFinished, function(plr, id, bought)
     if suppressCounter == 0 and plr == player then addLog("Product", id, "Product") end
-end)
-safeConnect(MarketplaceService.PromptGamePassPurchaseFinished, function(plr, id, bought)
-    if suppressCounter == 0 and plr == player then addLog("Gamepass", id, "Gamepass") end
 end)
 safeConnect(MarketplaceService.PromptBulkPurchaseFinished, function(userId, id, bought)
     if suppressCounter == 0 and userId == player.UserId then addLog("Bulk", id, "Bulk") end
@@ -1218,6 +1243,6 @@ task.spawn(function()
     if destroyed or not screenGui or not screenGui.Parent then return end
     local gps = scanAllGamepasses()
     for _, gp in ipairs(gps) do
-        addLog("Scan", gp.id, "Gamepass")
+        addLog("API", gp.id, "Gamepass")
     end
 end)
